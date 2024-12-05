@@ -2,10 +2,12 @@ import os
 
 import torch
 import torch.distributed as dist
+
+# from torch._C._distributed_c10d import _SymmetricMemory
+# from torch.distributed._symmetric_memory import enable_symm_mem_for_group
+import torch.distributed._symmetric_memory as symm_mem
 import triton
 import triton.language as tl
-from torch._C._distributed_c10d import _SymmetricMemory
-from torch.distributed._symmetric_memory import enable_symm_mem_for_group
 
 from .triton_barrier import blockwise_barrier
 from .utils import benchmark_with_profiler
@@ -108,20 +110,22 @@ def one_shot_all_reduce(tensor: torch.Tensor):
         MAX_NUM_BLOCKS,
     )
 
-    symm_mem = _SymmetricMemory.rendezvous(tensor)
+    symm_mem_hdl = symm_mem.rendezvous(tensor, group=dist.group.WORLD)
     output = torch.empty_like(tensor)
 
-    one_shot_all_reduce_kernel[(num_blocks, 1, 1)](
-        symm_mem.buffer_ptrs_dev,
-        symm_mem.signal_pad_ptrs_dev,
+    compiled = one_shot_all_reduce_kernel[(num_blocks, 1, 1)](
+        symm_mem_hdl.buffer_ptrs_dev,
+        symm_mem_hdl.signal_pad_ptrs_dev,
         output,
         numel=tensor.numel(),
-        rank=symm_mem.rank,
-        world_size=symm_mem.world_size,
+        rank=symm_mem_hdl.rank,
+        world_size=symm_mem_hdl.world_size,
         BLOCK_SIZE=BLOCK_SIZE,
         NUMEL_PER_THREAD=NUMEL_PER_THREAD,
         num_warps=NUM_WARPS,
     )
+    if dist.get_rank() == 0:
+        print(compiled.asm["ptx"])
     return output
 
 
@@ -139,16 +143,8 @@ if __name__ == "__main__":
     device = torch.device(f"cuda:{local_rank}")
     torch.cuda.set_device(device)
     dist.init_process_group("nccl")
-    group_name = dist.group.WORLD.group_name
-    enable_symm_mem_for_group(group_name)
 
-    tensor = _SymmetricMemory.empty_strided_p2p(
-        size=(8192,),
-        stride=(1,),
-        dtype=torch.bfloat16,
-        device=device,
-        group_name=group_name,
-    ).fill_(1)
+    tensor = symm_mem.empty(8192, dtype=torch.bfloat16, device=device).fill_(1)
 
     output = one_shot_all_reduce(tensor)
     assert output.eq(world_size).all().item()

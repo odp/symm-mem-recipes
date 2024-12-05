@@ -2,10 +2,9 @@ import os
 
 import torch
 import torch.distributed as dist
+import torch.distributed._symmetric_memory as symm_mem
 import triton
 import triton.language as tl
-from torch._C._distributed_c10d import _SymmetricMemory
-from torch.distributed._symmetric_memory import enable_symm_mem_for_group
 
 
 @triton.jit
@@ -162,12 +161,17 @@ def barrier_test_kernel(
     blockwise_barrier(signal_pad_ptrs, None, RANK, WORLD_SIZE)
 
 
-def barrier_test(symm_mem: _SymmetricMemory):
+def barrier_test(t: torch.Tensor) -> None:
+    symm_mem_hdl = symm_mem.rendezvous(t, group=dist.group.WORLD)
+
     barrier_test_kernel[(32, 1, 1)](
-        symm_mem.signal_pad_ptrs_dev,
-        RANK=symm_mem.rank,
-        WORLD_SIZE=symm_mem.world_size,
+        symm_mem_hdl.signal_pad_ptrs_dev,
+        RANK=symm_mem_hdl.rank,
+        WORLD_SIZE=symm_mem_hdl.world_size,
     )
+
+    signal_pad = symm_mem_hdl.get_signal_pad(symm_mem_hdl.rank)
+    print(signal_pad)
 
 
 if __name__ == "__main__":
@@ -184,17 +188,6 @@ if __name__ == "__main__":
     device = torch.device(f"cuda:{local_rank}")
     torch.cuda.set_device(device)
     dist.init_process_group("nccl")
-    group_name = dist.group.WORLD.group_name
-    enable_symm_mem_for_group(group_name)
 
-    t = _SymmetricMemory.empty_strided_p2p(
-        size=(4096,),
-        stride=(1,),
-        dtype=torch.uint32,
-        device=device,
-        group_name=group_name,
-    ).fill_(0)
-
-    symm_mem = _SymmetricMemory.rendezvous(t)
-    barrier_test(symm_mem)
-    print(t)
+    t = symm_mem.empty(4096, device=device)
+    barrier_test(t)

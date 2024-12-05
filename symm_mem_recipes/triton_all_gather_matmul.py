@@ -3,14 +3,10 @@ import os
 import click
 import torch
 import torch.distributed as dist
+import torch.distributed._symmetric_memory as symm_mem
 import triton
 import triton.language as tl
 import triton.tools.experimental_descriptor
-from torch._C._distributed_c10d import _SymmetricMemory
-from torch.distributed._symmetric_memory import (
-    _get_backend_stream,
-    enable_symm_mem_for_group,
-)
 
 from symm_mem_recipes.utils import benchmark_with_event
 
@@ -25,11 +21,11 @@ def all_gather_with_progress(
 ):
     assert inp.is_contiguous()
 
-    symm_mem = _SymmetricMemory.rendezvous(inp)
-    assert symm_mem is not None
+    symm_mem_hdl = symm_mem.rendezvous(inp, group=dist.group.WORLD)
+    assert symm_mem_hdl is not None
 
-    rank = symm_mem.rank
-    world_size = symm_mem.world_size
+    rank = symm_mem_hdl.rank
+    world_size = symm_mem_hdl.world_size
 
     assert inp.numel() % splits_per_rank == 0
     assert progress.numel() == world_size * splits_per_rank
@@ -43,17 +39,17 @@ def all_gather_with_progress(
     for step in range(0, world_size):
         src_rank = (rank + step + 1) % world_size
         for split_id in range(splits_per_rank):
-            src_buf = symm_mem.get_buffer(
+            src_buf = symm_mem_hdl.get_buffer(
                 src_rank, chunks[0].shape, inp.dtype, chunks[0].numel() * split_id
             )
             chunks[src_rank * splits_per_rank + split_id].copy_(src_buf)
             # cuStreamWriteValue32 issues a system level fence before the write
-            symm_mem.stream_write_value32(
-                int(progress.data_ptr())
-                + (src_rank * splits_per_rank + split_id) * progress.element_size(),
-                1,
+            symm_mem_hdl.stream_write_value32(
+                progress,
+                offset=src_rank * splits_per_rank + split_id,
+                val=1,
             )
-    symm_mem.barrier()
+    symm_mem_hdl.barrier()
 
 
 def _matmul_launch_metadata(grid, kernel, args):
@@ -223,10 +219,10 @@ def all_gather_matmul_tma_persistent(
         rank = 0
         world_size = int(os.environ.get("WORLD_SIZE", "8"))
     else:
-        symm_mem = _SymmetricMemory.rendezvous(a_shard)
-        assert symm_mem is not None, "a_shard must be allocated via SymmetricMemory"
-        rank = symm_mem.rank
-        world_size = symm_mem.world_size
+        symm_mem_hdl = symm_mem.rendezvous(a_shard, group=dist.group.WORLD)
+        assert symm_mem_hdl is not None, "a_shard must be allocated via SymmetricMemory"
+        rank = symm_mem_hdl.rank
+        world_size = symm_mem_hdl.world_size
 
     dtype = a_shard.dtype
     M = a_shard.shape[0] * world_size
@@ -243,13 +239,14 @@ def all_gather_matmul_tma_persistent(
     COMM_BLOCK_SIZE_M = M // world_size // SPLITS_PER_RANK
     assert COMM_BLOCK_SIZE_M % (configs["BLOCK_SIZE_M"] * configs["GROUP_SIZE_M"]) == 0
 
+    backend_stream = symm_mem._get_backend_stream(priority=-1)
     if mm_only:
         progress = torch.ones(world_size, dtype=torch.uint32, device="cuda")
     else:
         progress = torch.zeros(world_size, dtype=torch.uint32, device="cuda")
-        symm_mem.barrier(0)
-        _get_backend_stream().wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(_get_backend_stream()):
+        symm_mem_hdl.barrier(0)
+        backend_stream.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(backend_stream):
             all_gather_with_progress(a_out, a_shard, progress, SPLITS_PER_RANK)
 
     desc_a_shard = create_2d_tma_descriptor(
@@ -315,7 +312,7 @@ def all_gather_matmul_tma_persistent(
     )
     global last_ptx
     last_ptx = compiled.asm["ptx"]
-    torch.cuda.current_stream().wait_stream(_get_backend_stream())
+    torch.cuda.current_stream().wait_stream(backend_stream)
     return c_out
 
 
@@ -363,15 +360,18 @@ def main(
     torch.cuda.set_device(device)
     torch.manual_seed(42 + rank)
     dist.init_process_group("nccl")
-    group_name = dist.group.WORLD.group_name
-    enable_symm_mem_for_group(group_name)
+    # group_name = dist.group.WORLD.group_name
+    # enable_symm_mem_for_group(group_name)
 
-    a_shard = _SymmetricMemory.empty_strided_p2p(
-        size=(m // world_size, k),
-        stride=(k, 1),
-        dtype=torch.bfloat16,
-        device=device,
-        group_name=group_name,
+    # a_shard = _SymmetricMemory.empty_strided_p2p(
+    #     size=(m // world_size, k),
+    #     stride=(k, 1),
+    #     dtype=torch.bfloat16,
+    #     device=device,
+    #     group_name=group_name,
+    # ).normal_()
+    a_shard = symm_mem.empty(
+        m // world_size, k, dtype=torch.bfloat16, device=device
     ).normal_()
     a = torch.randn((m, k), device="cuda", dtype=torch.bfloat16)
     b = torch.randn((k, n), device="cuda", dtype=torch.bfloat16).T.contiguous()
