@@ -360,16 +360,7 @@ def main(
     torch.cuda.set_device(device)
     torch.manual_seed(42 + rank)
     dist.init_process_group("nccl")
-    # group_name = dist.group.WORLD.group_name
-    # enable_symm_mem_for_group(group_name)
 
-    # a_shard = _SymmetricMemory.empty_strided_p2p(
-    #     size=(m // world_size, k),
-    #     stride=(k, 1),
-    #     dtype=torch.bfloat16,
-    #     device=device,
-    #     group_name=group_name,
-    # ).normal_()
     a_shard = symm_mem.empty(
         m // world_size, k, dtype=torch.bfloat16, device=device
     ).normal_()

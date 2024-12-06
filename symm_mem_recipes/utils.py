@@ -88,7 +88,15 @@ def benchmark_with_event(
     benchmark_iters: int = 25,
     profile_ranks: Optional[List[int]] = None,
     flush_l2: bool = False,
+    cuda_graph: bool = False,
 ) -> float:
+    if cuda_graph:
+        target_fn()
+        g = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(g):
+            target_fn()
+        target_fn = lambda: g.replay()
+
     rank = dist.get_rank() if dist.is_initialized() else 0
     profile_ranks = profile_ranks or [0]
 
@@ -97,7 +105,9 @@ def benchmark_with_event(
 
     for _ in range(warmup_iters):
         target_fn()
-    dist.barrier(device_ids=[torch.cuda.current_device()])
+
+    if dist.is_initialized():
+        dist.barrier(device_ids=[torch.cuda.current_device()])
     torch.cuda.synchronize()
 
     begin_events = [
@@ -122,6 +132,7 @@ def benchmark_with_event(
         prof = nullcontext()
 
     with prof:
+        torch.cuda._sleep(int(10 * get_cycles_per_ms()))
         for i in range(benchmark_iters):
             if flush_l2:
                 cache.zero_()
