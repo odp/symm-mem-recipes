@@ -8,7 +8,7 @@ import triton.language as tl
 
 from triton_barrier import blockwise_barrier
 from triton_utils import sync_threads
-from utils import benchmark_with_profiler
+from utils import benchmark_with_profiler, log_triton_kernel
 
 
 @triton.jit
@@ -116,7 +116,7 @@ def one_shot_all_reduce(tensor: torch.Tensor):
     symm_mem_hdl = symm_mem.rendezvous(tensor, group=dist.group.WORLD)
     output = torch.empty_like(tensor)
 
-    one_shot_all_reduce_kernel[(num_blocks, 1, 1)](
+    kernel = one_shot_all_reduce_kernel[(num_blocks, 1, 1)](
         symm_mem_hdl.buffer_ptrs_dev,
         symm_mem_hdl.signal_pad_ptrs_dev,
         output,
@@ -127,6 +127,7 @@ def one_shot_all_reduce(tensor: torch.Tensor):
         NUMEL_PER_THREAD=NUMEL_PER_THREAD,
         num_warps=NUM_WARPS,
     )
+    log_triton_kernel(kernel)
     return output
 
 

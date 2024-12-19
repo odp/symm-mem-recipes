@@ -9,7 +9,7 @@ import triton.language as tl
 import triton.tools.experimental_descriptor
 
 from triton_barrier import get_flat_tid
-from utils import benchmark_with_event
+from utils import benchmark_with_event, log_triton_kernel
 
 
 def all_gather_with_progress(
@@ -208,9 +208,6 @@ def create_2d_tma_descriptor(ptr, dim1, dim0, block_dim1, block_dim0, element_si
     return desc
 
 
-last_ptx = None
-
-
 def all_gather_matmul_tma_persistent(
     a_shard, b, a_out, c_out, configs, mm_only: bool = False
 ):
@@ -288,7 +285,7 @@ def all_gather_matmul_tma_persistent(
             triton.cdiv(M, META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]),
         ),
     )
-    compiled = matmul_kernel_tma_persistent[grid](
+    kernel = matmul_kernel_tma_persistent[grid](
         desc_a_shard,
         desc_a,
         desc_b,
@@ -309,8 +306,7 @@ def all_gather_matmul_tma_persistent(
         num_stages=configs["num_stages"],
         num_warps=configs["num_warps"],
     )
-    global last_ptx
-    last_ptx = compiled.asm["ptx"]
+    log_triton_kernel(kernel)
     torch.cuda.current_stream().wait_stream(backend_stream)
     return c_out
 
@@ -332,7 +328,6 @@ def all_gather_matmul(a_shard, b):
 @click.option("--GROUP_SIZE_M", default=4)
 @click.option("--num_stages", default=3)
 @click.option("--num_warps", default=8)
-@click.option("--print_ptx", is_flag=True)
 def main(
     m: int,
     n: int,
@@ -343,7 +338,6 @@ def main(
     group_size_m: int,
     num_stages: int,
     num_warps: int,
-    print_ptx: bool,
 ):
     """
     torchrun \
@@ -406,9 +400,6 @@ def main(
     )
     if rank == 0:
         print(f"triton all_gather_matmul: {lat_us} us")
-
-    if print_ptx and rank == 0:
-        print(last_ptx)
 
     dist.destroy_process_group()
 

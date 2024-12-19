@@ -7,6 +7,7 @@ import triton
 import triton.language as tl
 
 from triton_utils import get_flat_bid, get_flat_tid, sync_threads
+from utils import log_triton_kernel
 
 
 @triton.jit
@@ -171,12 +172,12 @@ def barrier_test_kernel(
 def barrier_test(t: torch.Tensor) -> None:
     symm_mem_hdl = symm_mem.rendezvous(t, group=dist.group.WORLD)
 
-    compiled = barrier_test_kernel[(32, 1, 1)](
+    kernel = barrier_test_kernel[(32, 1, 1)](
         symm_mem_hdl.signal_pad_ptrs_dev,
         rank=symm_mem_hdl.rank,
         world_size=symm_mem_hdl.world_size,
     )
-    print(compiled.asm["ptx"])
+    log_triton_kernel(kernel)
 
     signal_pad = symm_mem_hdl.get_signal_pad(symm_mem_hdl.rank)
     assert signal_pad.eq(0).all().item()
