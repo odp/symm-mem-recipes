@@ -77,7 +77,7 @@ def main(
     torchrun \
     --nnodes 1 --nproc-per-node 8 \
     --rdzv-backend c10d --rdzv-endpoint localhost:0 \
-    --no_python python3 torch_compile_ag_mm.py --cuda-graph
+    --no_python python3 torch_compile_all_gather_matmul.py --cuda-graph
     """
     os.environ["TORCHINDUCTOR_FORCE_DISABLE_CACHE"] = "1"
     os.environ["TORCH_SYMM_MEM_ENABLE_NATIVE_ASYNC_TP"] = "1"
@@ -154,7 +154,9 @@ def main(
     torch.testing.assert_close(baseline(), compiled())
     baseline_us = benchmark_with_event(baseline, flush_l2=True, cuda_graph=cuda_graph)
     compiled_us = benchmark_with_event(compiled, flush_l2=True, cuda_graph=cuda_graph)
-    print(f"baseline us: {baseline_us:.2f}; compiled us: {compiled_us:.2f}")
+    print(f"baseline: {baseline_us:.2f} us; compiled: {compiled_us:.2f} us")
+
+    dist.destroy_process_group()
 
 
 if __name__ == "__main__":
