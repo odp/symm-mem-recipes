@@ -1,3 +1,4 @@
+import os
 import re
 from contextlib import nullcontext
 from typing import Callable, List, Optional
@@ -41,6 +42,9 @@ def benchmark_with_profiler(
         try:
             from trace_handler import trace_handler
         except ImportError:
+            trace_handler = None
+
+        if "NO_TRACE" in os.environ:
             trace_handler = None
 
         prof = torch.profiler.profile(
@@ -119,6 +123,9 @@ def benchmark_with_event(
         try:
             from trace_handler import trace_handler
         except ImportError:
+            trace_handler = None
+
+        if "NO_TRACE" in os.environ:
             trace_handler = None
 
         prof = torch.profiler.profile(

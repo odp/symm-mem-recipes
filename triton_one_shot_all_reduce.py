@@ -7,6 +7,7 @@ import triton
 import triton.language as tl
 
 from triton_barrier import blockwise_barrier
+from triton_utils import sync_threads
 from utils import benchmark_with_profiler
 
 
@@ -66,7 +67,9 @@ def one_shot_all_reduce_kernel(
     BLOCK_SIZE: tl.constexpr,
     NUMEL_PER_THREAD: tl.constexpr,
 ):
-    blockwise_barrier(signal_pad_ptrs, None, rank, world_size)
+    blockwise_barrier(signal_pad_ptrs, None, rank, world_size, sem="relaxed")
+    sync_threads()
+
     pid = tl.program_id(axis=0)
 
     buffer_ptrs = buffer_ptrs.to(tl.pointer_type(tl.uint64))
@@ -91,6 +94,9 @@ def one_shot_all_reduce_kernel(
         tl.store(output_ptr + offsets + 1, acc_lo, mask=mask)
         block_start += tl.num_programs(axis=0) * BLOCK_SIZE
 
+    sync_threads()
+    blockwise_barrier(signal_pad_ptrs, None, rank, world_size, sem="relaxed")
+
 
 def one_shot_all_reduce(tensor: torch.Tensor):
     MAX_NUM_BLOCKS = 24
@@ -110,7 +116,7 @@ def one_shot_all_reduce(tensor: torch.Tensor):
     symm_mem_hdl = symm_mem.rendezvous(tensor, group=dist.group.WORLD)
     output = torch.empty_like(tensor)
 
-    compiled = one_shot_all_reduce_kernel[(num_blocks, 1, 1)](
+    one_shot_all_reduce_kernel[(num_blocks, 1, 1)](
         symm_mem_hdl.buffer_ptrs_dev,
         symm_mem_hdl.signal_pad_ptrs_dev,
         output,
@@ -121,8 +127,6 @@ def one_shot_all_reduce(tensor: torch.Tensor):
         NUMEL_PER_THREAD=NUMEL_PER_THREAD,
         num_warps=NUM_WARPS,
     )
-    if dist.get_rank() == 0:
-        print(compiled.asm["ptx"])
     return output
 
 
