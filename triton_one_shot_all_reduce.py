@@ -2,15 +2,12 @@ import os
 
 import torch
 import torch.distributed as dist
-
-# from torch._C._distributed_c10d import _SymmetricMemory
-# from torch.distributed._symmetric_memory import enable_symm_mem_for_group
 import torch.distributed._symmetric_memory as symm_mem
 import triton
 import triton.language as tl
 
-from .triton_barrier import blockwise_barrier
-from .utils import benchmark_with_profiler
+from triton_barrier import blockwise_barrier
+from utils import benchmark_with_profiler
 
 
 @triton.jit
@@ -134,7 +131,7 @@ if __name__ == "__main__":
     torchrun \
     --nnodes 1 --nproc-per-node 8 \
     --rdzv-backend c10d --rdzv-endpoint localhost:0 \
-    --no_python python3 -m symm_mem_recipes.triton_one_shot_all_reduce
+    --no_python python3 triton_one_shot_all_reduce.py
     """
     rank = int(os.environ["RANK"])
     local_rank = int(os.environ["LOCAL_RANK"])

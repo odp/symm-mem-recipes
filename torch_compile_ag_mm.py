@@ -8,7 +8,7 @@ import torch.distributed as dist
 import torch.distributed._symmetric_memory as symm_mem
 from torch.distributed._functional_collectives import all_gather_tensor
 
-from symm_mem_recipes.utils import benchmark_with_event
+from utils import benchmark_with_event
 
 
 def parse_csv(ctx, param, value):
@@ -77,7 +77,7 @@ def main(
     torchrun \
     --nnodes 1 --nproc-per-node 8 \
     --rdzv-backend c10d --rdzv-endpoint localhost:0 \
-    --no_python python3 -m symm_mem_recipes.torch_compile_ag_mm --cuda-graph
+    --no_python python3 torch_compile_ag_mm.py --cuda-graph
     """
     os.environ["TORCHINDUCTOR_FORCE_DISABLE_CACHE"] = "1"
     os.environ["TORCH_SYMM_MEM_ENABLE_NATIVE_ASYNC_TP"] = "1"

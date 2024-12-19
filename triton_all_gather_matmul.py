@@ -8,9 +8,8 @@ import triton
 import triton.language as tl
 import triton.tools.experimental_descriptor
 
-from symm_mem_recipes.utils import benchmark_with_event
-
-from .triton_barrier import get_flat_tid
+from triton_barrier import get_flat_tid
+from utils import benchmark_with_event
 
 
 def all_gather_with_progress(
@@ -350,7 +349,7 @@ def main(
     torchrun \
     --nnodes 1 --nproc-per-node 8 \
     --rdzv-backend c10d --rdzv-endpoint localhost:0 \
-    --no_python python3 -m symm_mem_recipes.triton_all_gather_matmul
+    --no_python python3 triton_all_gather_matmul.py
     """
     rank = int(os.environ["RANK"])
     local_rank = int(os.environ["LOCAL_RANK"])
