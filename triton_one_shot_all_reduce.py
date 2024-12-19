@@ -1,5 +1,3 @@
-import os
-
 import torch
 import torch.distributed as dist
 import torch.distributed._symmetric_memory as symm_mem
@@ -8,7 +6,7 @@ import triton.language as tl
 
 from triton_barrier import blockwise_barrier
 from triton_utils import sync_threads
-from utils import benchmark_with_profiler, log_triton_kernel
+from utils import log_triton_kernel
 
 
 @triton.jit
@@ -138,25 +136,6 @@ if __name__ == "__main__":
     --rdzv-backend c10d --rdzv-endpoint localhost:0 \
     --no_python python3 triton_one_shot_all_reduce.py
     """
-    rank = int(os.environ["RANK"])
-    local_rank = int(os.environ["LOCAL_RANK"])
-    world_size = int(os.environ["WORLD_SIZE"])
+    from symm_mem_all_reduce import main
 
-    device = torch.device(f"cuda:{local_rank}")
-    torch.cuda.set_device(device)
-    dist.init_process_group("nccl")
-
-    tensor = symm_mem.empty(8192, dtype=torch.bfloat16, device=device).fill_(1)
-
-    output = one_shot_all_reduce(tensor)
-    assert output.eq(world_size).all().item()
-
-    lat_us = benchmark_with_profiler(
-        lambda: one_shot_all_reduce(tensor),
-        "one_shot_all_reduce_kernel",
-        benchmark_iters=200,
-    )
-    if rank == 0:
-        print(f"Median latency: {lat_us:.2f} us")
-
-    dist.destroy_process_group()
+    main(["--impl", "triton_one_shot_all_reduce"])
