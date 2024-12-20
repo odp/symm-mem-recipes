@@ -33,6 +33,12 @@ def two_shot_all_reduce(msg):
     )
 
 
+def triton_multimem_all_reduce(msg):
+    from triton_multimem_all_reduce import multimem_all_reduce
+
+    multimem_all_reduce(msg)
+
+
 def triton_one_shot_all_reduce(msg):
     from triton_one_shot_all_reduce import one_shot_all_reduce
 
@@ -46,6 +52,8 @@ def get_impl(impl: str):
         return one_shot_all_reduce
     elif impl == "two_shot_all_reduce":
         return two_shot_all_reduce
+    elif impl == "triton_multimem_all_reduce":
+        return triton_multimem_all_reduce
     elif impl == "triton_one_shot_all_reduce":
         return triton_one_shot_all_reduce
     else:
@@ -81,7 +89,7 @@ def benchmark(device: torch.device, impl: str, msg_sz_bytes: int):
 @click.command()
 @click.option(
     "--impl",
-    help="Valid options: multimem_all_reduce, one_shot_all_reduce, two_shot_all_reduce, triton_one_shot_all_reduce",
+    help="Valid options: multimem_all_reduce, one_shot_all_reduce, two_shot_all_reduce, triton_multimem_all_reduce, triton_one_shot_all_reduce",
     default="multimem_all_reduce",
 )
 def main(impl: str):
