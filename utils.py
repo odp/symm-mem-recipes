@@ -5,7 +5,6 @@ from typing import Callable, List, Optional
 
 import torch
 import torch.distributed as dist
-from torch.testing._internal.common_utils import get_cycles_per_ms
 
 
 def benchmark_with_profiler(
@@ -65,7 +64,7 @@ def benchmark_with_profiler(
     torch.cuda.synchronize()
 
     with prof:
-        torch.cuda._sleep(int(10 * get_cycles_per_ms()))
+        torch.cuda._sleep(int(2e7))
         for i in range(benchmark_iters):
             if flush_l2:
                 cache.zero_()
@@ -139,7 +138,7 @@ def benchmark_with_event(
         prof = nullcontext()
 
     with prof:
-        torch.cuda._sleep(int(10 * get_cycles_per_ms()))
+        torch.cuda._sleep(int(2e7))
         for i in range(benchmark_iters):
             if flush_l2:
                 cache.zero_()
