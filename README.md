@@ -1,14 +1,51 @@
-## triton_all_gather_matmul.py
+# symm-mem-recipes
 
-This is a fused all-gather matmul example using Triton + SymmetricMemory, based on the `tma_persistent` Triton tutorial with slight modifications.
+This repository includes:
+- Usage and benchmarks of `SymmetricMemory`-based multi-GPU algorithms in PyTorch.
+- Examples and benchmarks of multi-GPU algorithms built with `SymmetricMemory` + Triton.
 
-This example requires PyTorch Nightly and Triton 3.0.0+ to run.
+---
+## symm_mem_all_reduce.py
 
+This script demonstrates the usage of `SymmetricMemory`-based NVLink all-reduce implementations and benchmarks their performance. The available variants are:
+- `multimem_all_reduce` (PyTorch op available in nightly)
+- `one_shot_all_reduce` (PyTorch op available in nightly)
+- `two_shot_all_reduce` (PyTorch op available in nightly)
+- `triton_multimem_all_reduce` (Triton kernel defined in this repo)
+- `triton_one_shot_all_reduce` (Triton kernel defined in this repo)
+
+Usage:
 ```bash
 torchrun \
 --nnodes 1 --nproc-per-node 8 \
 --rdzv-backend c10d --rdzv-endpoint localhost:0 \
---no_python python3 -m symm_mem_recipes.triton_all_gather_matmul \
+--no_python python3 symm_mem_all_reduce.py --impl multimem_all_reduce
+```
+
+Some benchmarks on 8xH100 with NVSwitch:
+
+<img src="https://github.com/user-attachments/assets/5de69841-7683-4b7a-9a38-f1aac3785060" width="60%">
+
+<img src="https://github.com/user-attachments/assets/c666cd6c-3f70-4380-9fa1-0d8e953cb382" width="60%">
+
+<img src="https://github.com/user-attachments/assets/597e12d8-37ed-4776-aca8-2b12bba58bff" width="60%">
+
+<img src="https://github.com/user-attachments/assets/1cfa320d-589f-466f-a54f-7fa45e6f132e" width="60%">
+
+
+---
+## triton_all_gather_matmul.py
+
+This is a fused all-gather matmul example using Triton + `SymmetricMemory`, based on the `tma_persistent` Triton tutorial with slight modifications.
+
+This example requires PyTorch Nightly and Triton 3.0.0+ to run.
+
+Usage:
+```bash
+torchrun \
+--nnodes 1 --nproc-per-node 8 \
+--rdzv-backend c10d --rdzv-endpoint localhost:0 \
+--no_python python3 triton_all_gather_matmul.py \
 --M 16384 --N 6656 --K 16384 --BLOCK_SIZE_M 128 --BLOCK_SIZE_N 256 --BLOCK_SIZE_K 64
 ```
 
