@@ -49,25 +49,29 @@ torchrun \
 --M 16384 --N 6656 --K 16384 --BLOCK_SIZE_M 128 --BLOCK_SIZE_N 256 --BLOCK_SIZE_K 64
 ```
 
-Some benchmarks on 8xH100 (special version with HBM2e, at 500W) with NVSwitch:
+Some benchmarks on 8xH100 (special version with HBM2e, at 650W) with NVSwitch:
 
 #### Llama 3 8B (N=1792, K=4096)
-| Problem Size<br>(M) | Block Size<br>(M, N, K) | cuBLAS MM<br>Only (µs) | Triton MM<br>Only (µs) | cuBLAS +<br>NCCL (µs) | Triton<br>Fused (µs) |
-|------------|------------|------------|------------|------------|------------|
-| 4096 | 128, 128, 128 | 105 | 125 | 230 | 213 |
-| 8192 | 128, 128, 128 | 194 | 236 | 416 | 318 |
-| 16384 | 256, 128, 64 | 391 | 434 | 819 | 514 |
+| Problem Size<br>(M) | Config<sup>1</sup>  | cuBLAS MM<br>Only (µs) | Triton MM<br>Only (µs) | cuBLAS +<br>NCCL (µs) | Triton<br>Fused (µs) | Speedup |
+|------------|------------|------------|------------|------------|------------|------------|
+| 4096 | 64,128,128,4 | 100 | 142 | 223 | 211 | 1.05x<sup>2</sup> |
+| 8192 | 128,128,64,6 | 186 | 198 | 393 | 293 | 1.34x |
+| 16384 | 128,256,64,3 | 363 | 363 | 748 | 485 | 1.54x |
 
 #### Llama 3 70B (N=3584, K=8192)
-| Problem Size<br>(M) | Block Size<br>(M, N, K) | cuBLAS MM<br>Only (µs) | Triton MM<br>Only (µs) | cuBLAS +<br>NCCL (µs) | Triton<br>Fused (µs) |
-|------------|------------|------------|------------|------------|------------|
-| 4096 | 128, 128, 128 | 403 | 483 | 652 | 543 |
-| 8192 | 256, 128, 64 | 828 | 849 | 1291 | 948 |
-| 16384 | 256, 128, 64 | 1672 | 1655 | 2541 | 1846 |
+| Problem Size<br>(M) | Config<sup>1</sup>  | cuBLAS MM<br>Only (µs) | Triton MM<br>Only (µs) | cuBLAS +<br>NCCL (µs) | Triton<br>Fused (µs) | Speedup |
+|------------|------------|------------|------------|------------|------------|------------|
+| 4096 | 128,128,64,6 | 376 | 392 | 587 | 453 | 1.29x |
+| 8192 | 128,256,64,3 | 746 | 706 | 1168 | 821 | 1.42x |
+| 16384 | 128,256,64,3 | 1502 | 1403  | 2306 | 1566 | 1.47x |
 
 #### Llama 3 105B (N=6656, K=16384)
-| Problem Size<br>(M) | Block Size<br>(M, N, K) | cuBLAS MM<br>Only (µs) | Triton MM<br>Only (µs) | cuBLAS +<br>NCCL (µs) | Triton<br>Fused (µs) |
-|------------|------------|------------|------------|------------|------------|
-| 4096 | 128, 256, 64 | 1558 | 1595 | 2077 | 1776 |
-| 8192 | 128, 256, 64 | 2879 | 2953 | 3847 | 3243 |
-| 16384 | 128, 256, 64 | 5842 | 5948 | 7801 | 6538 |
+| Problem Size<br>(M) | Config<sup>1</sup>  | cuBLAS MM<br>Only (µs) | Triton MM<br>Only (µs) | cuBLAS +<br>NCCL (µs) | Triton<br>Fused (µs) | Speedup |
+|------------|------------|------------|------------|------------|------------|------------|
+| 4096 | 128,256,64,3 | 1358 | 1425 | 1858 | 1615 | 1.15x |
+| 8192 | 128,256,64,3 | 2567 | 2656 | 3533 | 2907 | 1.22x |
+| 16384 | 128,256,64,3 | 5249 | 5375 | 6982 | 5814 | 1.20x |
+
+<sup>1</sup> Config refers to `BLOCK_SIZE_M`, `BLOCK_SIZE_N`, `BLOCK_SIZE_K`, and `num_stages`.
+
+<sup>2</sup> For this problem size, using multicast all-gather would be a more suitable optimization.
