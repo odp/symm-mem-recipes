@@ -31,6 +31,9 @@ def benchmark_with_profiler(
     Returns:
         The measured median latency in microseconds.
     """
+    if "BENCHMARK_ITERS" in os.environ:
+        benchmark_iters = int(os.environ["BENCHMARK_ITERS"])
+
     rank = dist.get_rank() if dist.is_initialized() else 0
     profile_ranks = profile_ranks or [0]
 
@@ -99,6 +102,9 @@ def benchmark_with_event(
         with torch.cuda.graph(g):
             target_fn()
         target_fn = lambda: g.replay()
+
+    if "BENCHMARK_ITERS" in os.environ:
+        benchmark_iters = int(os.environ["BENCHMARK_ITERS"])
 
     rank = dist.get_rank() if dist.is_initialized() else 0
     profile_ranks = profile_ranks or [0]

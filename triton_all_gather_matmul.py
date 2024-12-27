@@ -375,31 +375,34 @@ def main(
     c1 = all_gather_matmul_tma_persistent(a_shard, b, a, c, configs)
     assert torch.allclose(c0, c1)
 
-    lat_us = benchmark_with_event(lambda: torch.matmul(a, b.T, out=c), flush_l2=True)
-    if rank == 0:
-        print(f"cublas matmul only: {lat_us} us")
+    def rank_0_print(msg):
+        if rank == 0:
+            print(msg)
 
-    lat_us = benchmark_with_event(
+    lat_cublas_mm = benchmark_with_event(
+        lambda: torch.matmul(a, b.T, out=c), flush_l2=True
+    )
+    rank_0_print(f"cublas mm only:\t{round(lat_cublas_mm)} us")
+
+    lat_triton_mm = benchmark_with_event(
         lambda: all_gather_matmul_tma_persistent(
             a_shard, b, a, c, configs, mm_only=True
         ),
         flush_l2=True,
     )
-    if rank == 0:
-        print(f"triton matmul only: {lat_us} us")
+    rank_0_print(f"triton mm only:\t{round(lat_triton_mm)} us")
 
-    lat_us = benchmark_with_event(
+    lat_cublas_nccl = benchmark_with_event(
         lambda: all_gather_matmul(a_shard, b.T), flush_l2=True
     )
-    if rank == 0:
-        print(f"cublas + nccl: {lat_us} us")
+    rank_0_print(f"cublas + nccl:\t{round(lat_cublas_nccl)} us")
 
-    lat_us = benchmark_with_event(
+    lat_triton_fused = benchmark_with_event(
         lambda: all_gather_matmul_tma_persistent(a_shard, b, a, c, configs),
         flush_l2=True,
     )
-    if rank == 0:
-        print(f"triton all_gather_matmul: {lat_us} us")
+    rank_0_print(f"triton fused:\t{round(lat_triton_fused)} us")
+    rank_0_print(f"speedup:\t{lat_cublas_nccl / lat_triton_fused:.02f}x")
 
     dist.destroy_process_group()
 
