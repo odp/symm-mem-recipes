@@ -1,0 +1,18 @@
+START: Tue Oct 28 02:00:05 AM UTC 2025
+JOB  : symm-mem-allreduce  ID=974916
+W1028 02:00:07.879000 1671687 torch/distributed/run.py:803] 
+W1028 02:00:07.879000 1671687 torch/distributed/run.py:803] *****************************************
+W1028 02:00:07.879000 1671687 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W1028 02:00:07.879000 1671687 torch/distributed/run.py:803] *****************************************
+Benchmarking multimem_all_reduce...
+msg_sz_bytes: 4096	nccl_ring: 14.37 us	multimem_all_reduce: 6.72 us	
+msg_sz_bytes: 8192	nccl_ring: 14.62 us	multimem_all_reduce: 6.72 us	
+msg_sz_bytes: 16384	nccl_ring: 15.17 us	multimem_all_reduce: 6.69 us	
+msg_sz_bytes: 32768	nccl_ring: 16.99 us	multimem_all_reduce: 6.78 us	
+msg_sz_bytes: 65536	nccl_ring: 17.25 us	multimem_all_reduce: 6.78 us	
+msg_sz_bytes: 131072	nccl_ring: 17.41 us	multimem_all_reduce: 7.26 us	
+msg_sz_bytes: 262144	nccl_ring: 17.70 us	multimem_all_reduce: 7.65 us	
+msg_sz_bytes: 524288	nccl_ring: 17.92 us	multimem_all_reduce: 8.73 us	
+msg_sz_bytes: 1048576	nccl_ring: 23.68 us	multimem_all_reduce: 10.59 us	
+NCCL version 2.27.5+cuda12.9
+END  : Tue Oct 28 02:00:34 AM UTC 2025
