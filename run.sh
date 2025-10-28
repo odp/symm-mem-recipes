@@ -43,7 +43,7 @@ source $HOME/symm-mem-recipes/.venv/bin/activate
 torchrun \
   --nnodes 1 --nproc-per-node 8 \
   --rdzv-backend c10d --rdzv-endpoint localhost:0 \
-  --no_python python3 triton_all_gather_matmul.py \
-  --M 16384 --N 6656 --K 16384 --BLOCK_SIZE_M 128 --BLOCK_SIZE_N 256 --BLOCK_SIZE_K 64
+  --no_python python3 symm_mem_all_reduce.py --impl multimem_all_reduce
+
 
 echo "END  : $(date)"

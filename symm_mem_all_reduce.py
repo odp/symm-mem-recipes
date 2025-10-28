@@ -112,7 +112,7 @@ def main(impl: str):
     if dist.get_rank() == 0:
         print(f"Benchmarking {impl}...")
 
-    msg_sizes = [2**exp for exp in range(12, 21)]
+    msg_sizes = [2**exp for exp in range(12, 33)]
     for msg_sz_bytes in msg_sizes:
         benchmark(device, impl, msg_sz_bytes)
 
